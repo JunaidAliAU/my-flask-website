@@ -3,8 +3,6 @@ name: CI/CD Pipeline for Flask App
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
 jobs:
   build-and-deploy:
@@ -27,29 +25,73 @@ jobs:
       run: |
         docker build -t ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest .
     
-    # Step 4: Push to Docker Hub
+    # Step 4: Push Docker image
     - name: Push Docker image
       run: |
         docker push ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest
     
-    # Step 5: Deploy to AWS EC2
+    # Step 5: SIMPLIFIED DEPLOYMENT (using SUDO)
     - name: Deploy to AWS EC2
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.AWS_EC2_HOST }}
         username: ${{ secrets.AWS_EC2_USER }}
         key: ${{ secrets.AWS_SSH_KEY }}
+        port: 22
+        timeout: 120s
         script: |
-          # Stop old container
-          docker stop flask-app || true
-          docker rm flask-app || true
+          echo "========================================"
+          echo "🚀 DEPLOYING FLASK APP TO AWS EC2"
+          echo "========================================"
           
-          # Pull new image
-          docker pull ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest
+          # 1. Install Docker if not present (with SUDO)
+          if ! command -v docker &> /dev/null; then
+            echo "📦 Installing Docker..."
+            sudo yum update -y
+            sudo yum install docker -y
+            sudo systemctl start docker
+            sudo systemctl enable docker
+          else
+            echo "✅ Docker already installed"
+          fi
           
-          # Run new container
-          docker run -d \
+          # 2. Stop and remove old container (with SUDO)
+          echo "🛑 Removing old container..."
+          sudo docker stop flask-app 2>/dev/null || echo "No container to stop"
+          sudo docker rm flask-app 2>/dev/null || echo "No container to remove"
+          
+          # 3. Pull latest image (with SUDO)
+          echo "📥 Pulling Docker image..."
+          sudo docker pull ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest
+          
+          # 4. Run new container (with SUDO)
+          echo "🐳 Starting Flask container..."
+          sudo docker run -d \
             --name flask-app \
             -p 80:5000 \
             --restart always \
             ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest
+          
+          # 5. Wait and verify
+          echo "⏳ Waiting for container to start..."
+          sleep 10
+          
+          # 6. Check container status
+          echo "📊 Container Status:"
+          sudo docker ps
+          
+          # 7. Test website
+          echo "🌐 Testing website..."
+          if curl -s -f http://localhost > /dev/null; then
+            echo "✅ WEBSITE IS LIVE AND WORKING!"
+          else
+            echo "⚠️ Website still starting..."
+            # Show logs
+            echo "📝 Container logs:"
+            sudo docker logs flask-app --tail 20
+          fi
+          
+          echo "========================================"
+          echo "🎉 DEPLOYMENT COMPLETED!"
+          echo "🌍 Access: http://${{ secrets.AWS_EC2_HOST }}"
+          echo "========================================"
