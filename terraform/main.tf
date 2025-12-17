@@ -16,10 +16,10 @@ provider "aws" {
 }
 
 # Security Group
-resource "aws_security_group" "existing_sg" {
+resource "aws_security_group" "flask_sg" {
   name        = "launch-wizard-1"
-  description = "launch-wizard-1 created 2025-12-07T16:11:14.164Z"
-  vpc_id      = "vpc-005011d1b522ff251"
+  description = "Security group for flask server"
+  vpc_id      = "vpc-09caafeb48b0faa55" # Updated VPC ID
 
   ingress {
     from_port   = 22
@@ -49,20 +49,22 @@ resource "aws_security_group" "existing_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {}
+  tags = {
+    Name = "my-flask-server-sg"
+  }
 }
 
 # EC2 Instance
-resource "aws_instance" "portfolio" {
-  ami           = "ami-0fa3fe0fa7920f68e"
+resource "aws_instance" "flask_server" {
+  ami           = "ami-0c398cb65a93047f2" # Updated Ubuntu 22.04 AMI
   instance_type = "t3.micro"
-  key_name      = "gohardevops"
-  subnet_id     = "subnet-0633cc42f49db6fad"
+  key_name      = "flask-server-key"      # Updated Key Pair
+  subnet_id     = "subnet-0a9e032d96894c14d" # Updated Subnet ID
 
-  vpc_security_group_ids = [aws_security_group.existing_sg.id]
+  vpc_security_group_ids = [aws_security_group.flask_sg.id]
 
   tags = {
-    Name = "gohar-devops"
+    Name = "my-flask-server"
   }
 
   root_block_device {
@@ -73,7 +75,7 @@ resource "aws_instance" "portfolio" {
 
   metadata_options {
     http_endpoint               = "enabled"
-    http_tokens                 = "required"
+    http_tokens                 = "required" # Matches IMDSv2 Required
     http_put_response_hop_limit = 2
   }
 
@@ -83,5 +85,5 @@ resource "aws_instance" "portfolio" {
 }
 
 output "website_url" {
-  value = "http://3.85.222.141"
+  value = "http://54.167.77.81" # Updated Public IP
 }

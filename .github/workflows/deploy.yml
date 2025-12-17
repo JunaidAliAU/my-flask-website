@@ -8,7 +8,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: gohardevops-project
+  ECR_REPOSITORY: junaidproject
 
 jobs:
   terraform-validate:
@@ -131,7 +131,7 @@ jobs:
             --name portfolio-container \
             --restart unless-stopped \
             -p 80:5000 \
-            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+            ${{ steps.ecr.outputs.registry }}/${{ env.DOCKER_USERNAME }}:latest
           
           # Verify
           echo "Verifying deployment..."
