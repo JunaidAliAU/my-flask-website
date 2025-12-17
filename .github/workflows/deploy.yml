@@ -88,18 +88,25 @@ jobs:
 
     - name: Deploy to EC2
       uses: appleboy/ssh-action@v1.0.0
-      env:
-        ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
       with:
         host: ${{ secrets.EC2_HOST }}
-        username: ec2-user
+        username: ubuntu
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           echo "=== Starting Deployment ==="
-          echo "ECR Registry: ${{ steps.ecr.outputs.registry }}"
           
-          # Create AWS credentials file
+          # Install Docker if not present
+          if ! [ -x "$(command -v docker)" ]; then
+            echo "Installing Docker..."
+            sudo apt-get update
+            sudo apt-get install -y docker.io
+            sudo usermod -aG docker ubuntu
+          fi
+          
+          # Create AWS credentials directory
           mkdir -p ~/.aws
+          
+          # Configure AWS CLI on EC2
           cat > ~/.aws/config << EOF
           [default]
           region = ${{ env.AWS_REGION }}
@@ -116,27 +123,23 @@ jobs:
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}
           
-          # Pull image
-          echo "Pulling image..."
+          # Pull latest image
+          echo "Pulling latest image..."
           docker pull ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
           
-          # Stop and remove old container
+          # Stop and remove existing container
           echo "Cleaning up old container..."
-          docker stop portfolio-container 2>/dev/null || echo "No container to stop"
-          docker rm portfolio-container 2>/dev/null || echo "No container to remove"
+          docker stop portfolio-container 2>/dev/null || true
+          docker rm portfolio-container 2>/dev/null || true
           
-          # Run new container
+          # Run the container
           echo "Starting new container..."
           docker run -d \
             --name portfolio-container \
             --restart unless-stopped \
             -p 80:5000 \
-            ${{ steps.ecr.outputs.registry }}/${{ env.DOCKER_USERNAME }}:latest
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
           
-          # Verify
-          echo "Verifying deployment..."
-          sleep 3
+          # Final check
           docker ps
-          
           echo "=== Deployment Complete ==="
-          echo " Visit: http://${{ secrets.EC2_HOST }}"
